@@ -12,6 +12,10 @@ targets:
   MorningChallenge:
     type: application
     platform: iOS
+    info:
+      path: App/Info.plist
+      properties:
+        NSAlarmKitUsageDescription: "Rings an alarm when it's time to start your morning activity, even in Sleep or Work Focus."
     sources:
       - App/Sources
       - path: App/Resources
@@ -24,4 +28,3 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Morning
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_NSAlarmKitUsageDescription: "Rings an alarm when it's time to start your morning activity, even in Sleep or Work Focus."

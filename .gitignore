@@ -4,3 +4,4 @@ Payload/
 *.ipa
 __pycache__/
 APP_TOKEN*
+App/Info.plist
