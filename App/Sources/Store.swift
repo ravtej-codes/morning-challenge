@@ -86,6 +86,35 @@ final class Store: ObservableObject {
         return true
     }
 
+    // MARK: - Extra sessions (after the morning is done; never logged, never synced)
+
+    /// Kept only so a running extra session survives the app being closed; cleared when it ends.
+    @Published private(set) var extra: Morning? = Store.loadExtra() {
+        didSet { UserDefaults.standard.set(extra.flatMap { try? JSONEncoder.morning.encode($0) }, forKey: Self.extraKey) }
+    }
+    private static let extraKey = "extraSession"
+
+    private static func loadExtra() -> Morning? {
+        UserDefaults.standard.data(forKey: extraKey).flatMap { try? JSONDecoder.morning.decode(Morning.self, from: $0) }
+    }
+
+    func startExtra(activity: Activity, leadMinutes: Int) {
+        let now = Date()
+        extra = Morning(date: Morning.dayKey(now), activity: activity.rawValue, leadMinutes: leadMinutes,
+                        startedAt: now, deadline: now.addingTimeInterval(TimeInterval(leadMinutes * 60)),
+                        confirmedStartedAt: nil, result: nil, paid: nil, updatedAt: 0)
+    }
+
+    func endExtra() { extra = nil }
+
+    /// Ends a running extra session once its fail time has passed. Returns true if it was missed.
+    @discardableResult
+    func evaluateExtra(now: Date = Date()) -> Bool {
+        guard let m = extra, now >= m.failTime else { return false }
+        extra = nil
+        return true
+    }
+
     func setPaid(_ value: String) {
         guard var m = unpaid else { return }
         m.paid = value

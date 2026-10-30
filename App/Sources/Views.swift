@@ -9,7 +9,7 @@ struct HomeView: View {
     @Binding var screen: Screen
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             HStack {
                 Spacer()
                 Button { screen = .settings } label: {
@@ -30,6 +30,7 @@ struct HomeView: View {
                 Text(today.result == "won" ? "Today is won. See you tomorrow." : "Today is done. Tomorrow is a new start.")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                BigButton(title: "Do Another Session!") { screen = .setup }
             } else {
                 BigButton(title: "Let's do it!") { screen = .setup }
             }
@@ -125,8 +126,13 @@ struct SetupView: View {
             Spacer()
             BigButton(title: "Start the clock", enabled: activity != nil) {
                 guard let activity else { return }
-                store.start(activity: activity, leadMinutes: lead)
-                if let m = store.current { Task { await Bells.schedule(for: m) } }
+                // Once today's morning is decided, further sessions are extras: no log, no streak.
+                if let today = store.today, !today.isRunning {
+                    store.startExtra(activity: activity, leadMinutes: lead)
+                } else {
+                    store.start(activity: activity, leadMinutes: lead)
+                }
+                if let m = store.current ?? store.extra { Task { await Bells.schedule(for: m) } }
                 screen = .countdown
             }
         }
@@ -148,6 +154,14 @@ struct CountdownView: View {
                         if now >= m.failTime && store.evaluate(now: now) {
                             Task { await Bells.cancelAll() }
                             screen = .lost
+                        }
+                    }
+            } else if let m = store.extra {
+                content(m, now: context.date)
+                    .onChange(of: context.date) { _, now in
+                        if store.evaluateExtra(now: now) {
+                            Task { await Bells.cancelAll() }
+                            screen = .missed
                         }
                     }
             } else {
@@ -182,9 +196,14 @@ struct CountdownView: View {
             .frame(width: 280, height: 280)
             Spacer()
             BigButton(title: "I've started") {
-                store.confirmStarted()
                 Task { await Bells.cancelAll() }
-                screen = .won
+                if store.current != nil {
+                    store.confirmStarted()
+                    screen = .won
+                } else {
+                    store.endExtra()
+                    screen = .home
+                }
             }
             Text("Silencing the alarm is not starting.").font(.caption).foregroundStyle(.secondary)
         }
@@ -227,6 +246,24 @@ struct LostView: View {
             Image(systemName: "xmark.circle").font(.system(size: 72)).foregroundStyle(.red)
             Text("Challenge lost.").font(.largeTitle.bold())
             Text("As agreed: pay ₹500 to PM CARES today, on your honour.\n\nThe streak starts again tomorrow. One morning doesn't define the practice.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+            Spacer()
+            BigButton(title: "Understood") { screen = .home }
+        }
+        .padding()
+    }
+}
+
+struct MissedView: View {
+    @Binding var screen: Screen
+
+    var body: some View {
+        VStack(spacing: 28) {
+            Spacer()
+            Image(systemName: "xmark.circle").font(.system(size: 72)).foregroundStyle(.red)
+            Text("Missed. Try Harder!").font(.largeTitle.bold())
+            Text("You know why you're doing this. No Excuses.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -338,6 +375,8 @@ struct BigButton: View {
         Button(action: action) {
             Text(title)
                 .font(.title3.bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
                 .background(RoundedRectangle(cornerRadius: 18).fill(enabled ? accent : Color.gray.opacity(0.3)))

@@ -31,7 +31,7 @@ struct MorningChallengeApp: App {
 }
 
 enum Screen: Equatable {
-    case home, setup, countdown, won, lost, payCheck, settings
+    case home, setup, countdown, won, lost, missed, payCheck, settings
 }
 
 struct RootView: View {
@@ -48,6 +48,7 @@ struct RootView: View {
             case .countdown: CountdownView(screen: $screen)
             case .won: WonView(screen: $screen)
             case .lost: LostView(screen: $screen)
+            case .missed: MissedView(screen: $screen)
             case .payCheck: PayCheckView(screen: $screen)
             case .settings: SettingsView(screen: $screen)
             }
@@ -62,11 +63,14 @@ struct RootView: View {
     /// Decide where to land when the app comes to the front.
     private func route() {
         let justLost = store.evaluate()
-        if justLost { Task { await Bells.cancelAll() } }
-        if store.current != nil {
+        let justMissed = store.evaluateExtra()
+        if justLost || justMissed { Task { await Bells.cancelAll() } }
+        if store.current != nil || store.extra != nil {
             screen = .countdown
         } else if justLost {
             screen = .lost
+        } else if justMissed {
+            screen = .missed
         } else if store.unpaid != nil {
             screen = .payCheck
         } else if screen == .countdown || screen == .payCheck {
