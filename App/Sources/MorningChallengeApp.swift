@@ -31,7 +31,7 @@ struct MorningChallengeApp: App {
 }
 
 enum Screen: Equatable {
-    case home, setup, countdown, won, lost, missed, payCheck, settings
+    case home, setup, nextAction, countdown, won, lost, missed, payCheck, settings
 }
 
 struct RootView: View {
@@ -45,6 +45,7 @@ struct RootView: View {
             switch screen {
             case .home: HomeView(screen: $screen)
             case .setup: SetupView(screen: $screen)
+            case .nextAction: NextActionView(screen: $screen)
             case .countdown: CountdownView(screen: $screen)
             case .won: WonView(screen: $screen)
             case .lost: LostView(screen: $screen)

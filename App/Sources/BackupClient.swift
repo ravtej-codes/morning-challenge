@@ -62,28 +62,36 @@ struct BackupClient {
     }
 }
 
+/// Secrets typed into Settings on the phone. Never in the code or the repo.
 enum Keychain {
-    private static let account = "backup-token"
-
     static var token: String? {
-        get {
-            let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-                                    kSecAttrAccount as String: account,
-                                    kSecReturnData as String: true]
-            var out: AnyObject?
-            guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
-                  let data = out as? Data else { return nil }
-            return String(data: data, encoding: .utf8)
-        }
-        set {
-            let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-                                    kSecAttrAccount as String: account]
-            SecItemDelete(q as CFDictionary)
-            guard let newValue, !newValue.isEmpty else { return }
-            var add = q
-            add[kSecValueData as String] = Data(newValue.utf8)
-            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            SecItemAdd(add as CFDictionary, nil)
-        }
+        get { read("backup-token") }
+        set { write("backup-token", newValue) }
+    }
+
+    static var deepseekKey: String? {
+        get { read("deepseek-key") }
+        set { write("deepseek-key", newValue) }
+    }
+
+    private static func read(_ account: String) -> String? {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                kSecAttrAccount as String: account,
+                                kSecReturnData as String: true]
+        var out: AnyObject?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
+              let data = out as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func write(_ account: String, _ value: String?) {
+        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                kSecAttrAccount as String: account]
+        SecItemDelete(q as CFDictionary)
+        guard let value, !value.isEmpty else { return }
+        var add = q
+        add[kSecValueData as String] = Data(value.utf8)
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        SecItemAdd(add as CFDictionary, nil)
     }
 }

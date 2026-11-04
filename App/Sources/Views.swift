@@ -34,6 +34,9 @@ struct HomeView: View {
             } else {
                 BigButton(title: "Let's do it!") { screen = .setup }
             }
+            Button("Not sure what to do next?") { screen = .nextAction }
+                .font(.headline)
+                .foregroundStyle(accent)
             StatusFooter()
         }
         .padding()
@@ -126,13 +129,10 @@ struct SetupView: View {
             Spacer()
             BigButton(title: "Start the clock", enabled: activity != nil) {
                 guard let activity else { return }
-                // Once today's morning is decided, further sessions are extras: no log, no streak.
-                if let today = store.today, !today.isRunning {
-                    store.startExtra(activity: activity, leadMinutes: lead)
-                } else {
-                    store.start(activity: activity, leadMinutes: lead)
+                // once today's morning is decided, further sessions are extras: no log, no streak
+                if let m = store.begin(label: activity.rawValue, kind: nil, leadMinutes: lead) {
+                    Task { await Bells.schedule(for: m) }
                 }
-                if let m = store.current ?? store.extra { Task { await Bells.schedule(for: m) } }
                 screen = .countdown
             }
         }
@@ -154,6 +154,8 @@ struct CountdownView: View {
                         if now >= m.failTime && store.evaluate(now: now) {
                             Task { await Bells.cancelAll() }
                             screen = .lost
+                        } else if now >= m.deadline {
+                            Chime.startLooping()
                         }
                     }
             } else if let m = store.extra {
@@ -162,12 +164,15 @@ struct CountdownView: View {
                         if store.evaluateExtra(now: now) {
                             Task { await Bells.cancelAll() }
                             screen = .missed
+                        } else if now >= m.deadline {
+                            Chime.startLooping()
                         }
                     }
             } else {
                 Color.clear.onAppear { screen = .home }
             }
         }
+        .onDisappear { Chime.stop() }
     }
 
     private func content(_ m: Morning, now: Date) -> some View {
@@ -177,6 +182,9 @@ struct CountdownView: View {
         let progress = overdue ? 1 : 1 - remaining / total
         return VStack(spacing: 28) {
             Spacer()
+            if m.isAction {
+                Text("Your one small action").font(.callout).foregroundStyle(.secondary)
+            }
             Text(m.activity).font(.title2.bold()).multilineTextAlignment(.center)
             ZStack {
                 Circle().stroke(Color.white.opacity(0.1), lineWidth: 14)
@@ -195,7 +203,8 @@ struct CountdownView: View {
             }
             .frame(width: 280, height: 280)
             Spacer()
-            BigButton(title: "I've started") {
+            BigButton(title: m.isAction ? "Done" : "I've started") {
+                Chime.stop()
                 Task { await Bells.cancelAll() }
                 if store.current != nil {
                     store.confirmStarted()
@@ -205,7 +214,7 @@ struct CountdownView: View {
                     screen = .home
                 }
             }
-            Text("Silencing the alarm is not starting.").font(.caption).foregroundStyle(.secondary)
+            Text(m.isAction ? "Silencing the bells is not doing it." : "Silencing the alarm is not starting.").font(.caption).foregroundStyle(.secondary)
         }
         .padding()
     }
@@ -319,9 +328,11 @@ struct SettingsView: View {
     @EnvironmentObject var store: Store
     @Binding var screen: Screen
     @State private var token = ""
+    @State private var deepseekKey = ""
     @State private var status = ""
 
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 18) {
             Button("Back") { screen = .home }.foregroundStyle(.secondary)
             Text("Settings").font(.largeTitle.bold())
@@ -347,6 +358,18 @@ struct SettingsView: View {
             }
             .buttonStyle(.bordered)
 
+            Text("DeepSeek key").font(.headline).padding(.top)
+            SecureField(Keychain.deepseekKey == nil ? "Paste key" : "Key saved — paste to replace", text: $deepseekKey)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Save key") {
+                Keychain.deepseekKey = deepseekKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                deepseekKey = ""
+                status = "Key saved on this phone"
+            }
+            .buttonStyle(.bordered)
+
             Text("Day-one test").font(.headline).padding(.top)
             Text("Turn on Sleep Focus, tap below, lock the phone. It must ring in about a minute.")
                 .font(.callout).foregroundStyle(.secondary)
@@ -354,13 +377,16 @@ struct SettingsView: View {
                 Task { status = await Bells.testAlarm() }
             }
             .buttonStyle(.bordered)
+            Text("Silent on iOS 27? Check Settings → Sounds & Haptics → Alarms volume.")
+                .font(.caption).foregroundStyle(.secondary)
 
             if !status.isEmpty { Text(status).foregroundStyle(accent) }
-            Spacer()
             StatusFooter()
                 .frame(maxWidth: .infinity)
+                .padding(.top)
         }
         .padding()
+        }
     }
 }
 

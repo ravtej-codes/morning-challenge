@@ -18,6 +18,25 @@ enum Activity: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Areas for the "not sure what to do next?" flow.
+enum FocusArea: String, CaseIterable, Identifiable {
+    case exercise = "Exercise"
+    case meditation = "Meditation"
+    case reading = "Reading a book"
+    case studying = "Studying"
+
+    var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .exercise: return "figure.strengthtraining.traditional"
+        case .meditation: return "brain.head.profile"
+        case .reading: return "book.closed"
+        case .studying: return "pencil.and.list.clipboard"
+        }
+    }
+}
+
 /// One entry per morning. Field names match the Firestore document.
 struct Morning: Codable, Identifiable, Equatable {
     var date: String                 // yyyy-MM-dd, local time
@@ -29,6 +48,7 @@ struct Morning: Codable, Identifiable, Equatable {
     var result: String?              // "won" | "lost" | nil while running
     var paid: String?                // "yes" | "not_yet" | nil
     var updatedAt: Double            // epoch ms, used to resolve conflicts
+    var kind: String? = nil          // nil = full activity, "action" = one small next action
 
     var id: String { date }
 
@@ -40,6 +60,7 @@ struct Morning: Codable, Identifiable, Equatable {
     var alarmTime: Date { deadline.addingTimeInterval(Self.alarmDelay) }
     var failTime: Date { deadline.addingTimeInterval(Self.failDelay) }
     var isRunning: Bool { result == nil }
+    var isAction: Bool { kind == "action" }
     var owesPayment: Bool { result == "lost" && paid != "yes" }
 
     mutating func touch() { updatedAt = Date().timeIntervalSince1970 * 1000 }

@@ -59,11 +59,22 @@ final class Store: ObservableObject {
 
     // MARK: - Challenge lifecycle
 
-    func start(activity: Activity, leadMinutes: Int) {
+    /// Starts today's challenge, or an unlogged extra once today is already decided.
+    @discardableResult
+    func begin(label: String, kind: String?, leadMinutes: Int) -> Morning? {
+        if let today, !today.isRunning {
+            startExtra(label: label, kind: kind, leadMinutes: leadMinutes)
+        } else {
+            start(label: label, kind: kind, leadMinutes: leadMinutes)
+        }
+        return current ?? extra
+    }
+
+    func start(label: String, kind: String?, leadMinutes: Int) {
         let now = Date()
-        var m = Morning(date: Morning.dayKey(now), activity: activity.rawValue, leadMinutes: leadMinutes,
+        var m = Morning(date: Morning.dayKey(now), activity: label, leadMinutes: leadMinutes,
                         startedAt: now, deadline: now.addingTimeInterval(TimeInterval(leadMinutes * 60)),
-                        confirmedStartedAt: nil, result: nil, paid: nil, updatedAt: 0)
+                        confirmedStartedAt: nil, result: nil, paid: nil, updatedAt: 0, kind: kind)
         m.touch()
         upsert(m)
     }
@@ -98,11 +109,11 @@ final class Store: ObservableObject {
         UserDefaults.standard.data(forKey: extraKey).flatMap { try? JSONDecoder.morning.decode(Morning.self, from: $0) }
     }
 
-    func startExtra(activity: Activity, leadMinutes: Int) {
+    func startExtra(label: String, kind: String?, leadMinutes: Int) {
         let now = Date()
-        extra = Morning(date: Morning.dayKey(now), activity: activity.rawValue, leadMinutes: leadMinutes,
+        extra = Morning(date: Morning.dayKey(now), activity: label, leadMinutes: leadMinutes,
                         startedAt: now, deadline: now.addingTimeInterval(TimeInterval(leadMinutes * 60)),
-                        confirmedStartedAt: nil, result: nil, paid: nil, updatedAt: 0)
+                        confirmedStartedAt: nil, result: nil, paid: nil, updatedAt: 0, kind: kind)
     }
 
     func endExtra() { extra = nil }

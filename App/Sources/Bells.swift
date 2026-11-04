@@ -21,13 +21,19 @@ enum Bells {
 
     static func schedule(for m: Morning) async {
         await cancelAll()
-        notify(id: "soft-bells", at: m.softBellTime, title: "Wrap up", body: "75% of your time is gone. Start moving towards \(m.activity).", sound: "soft_bells.wav")
-        notify(id: "deadline-bells", at: m.deadline, title: "It's time", body: "Start \(m.activity) now, then tap “I've started”.", sound: "deadline_bells.wav")
+        if m.isAction {
+            notify(id: "soft-bells", at: m.softBellTime, title: "Wrap up", body: "75% of your time is gone. Next: \(m.activity)", sound: "soft_bells.wav")
+            notify(id: "deadline-bells", at: m.deadline, title: "Do it now", body: "\(m.activity) — then tap “Done”.", sound: "deadline_bells.wav")
+        } else {
+            notify(id: "soft-bells", at: m.softBellTime, title: "Wrap up", body: "75% of your time is gone. Start moving towards \(m.activity).", sound: "soft_bells.wav")
+            notify(id: "deadline-bells", at: m.deadline, title: "It's time", body: "Start \(m.activity) now, then tap “I've started”.", sound: "deadline_bells.wav")
+        }
         notify(id: "lost", at: m.failTime, title: "Challenge lost", body: "Open the app.", sound: "lost_bell.wav")
-        await scheduleAlarm(at: m.alarmTime, title: "Start \(m.activity) now")
+        await scheduleAlarm(at: m.alarmTime, title: m.isAction ? "Do it now: \(m.activity)" : "Start \(m.activity) now")
     }
 
     static func cancelAll() async {
+        Chime.stop()
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
         if let raw = UserDefaults.standard.string(forKey: alarmKey), let id = UUID(uuidString: raw) {
             try? AlarmManager.shared.stop(id: id)

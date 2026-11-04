@@ -7,5 +7,6 @@ the app counts down against the clock, rings soft bells, then an insistent Alarm
 - `backend/` — Cloud Run backup API (Flask + Firestore), project `hobby-app-storage`, region `asia-south1`.
 - `.github/workflows/build.yml` — builds an unsigned `.ipa` on a macOS runner; Sideloadly signs and installs it.
 - `scripts/make_bells.py` — regenerates the bell sounds.
+- `scripts/make_icon.py` — regenerates the app icon.
 
 Sideloadly: fixed bundle ID `com.sunny.morningchallenge`, same Apple ID every time, automatic refresh on.

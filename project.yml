@@ -6,7 +6,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.0"
+    MARKETING_VERSION: "1.1"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   MorningChallenge:
@@ -16,6 +16,8 @@ targets:
       path: App/Info.plist
       properties:
         NSAlarmKitUsageDescription: "Rings an alarm when it's time to start your morning activity, even in Sleep or Work Focus."
+        NSMicrophoneUsageDescription: "Lets you say how you usually get started, so the app can suggest a first action."
+        NSSpeechRecognitionUsageDescription: "Turns what you say into text for the next-action suggestions."
     sources:
       - App/Sources
       - path: App/Resources
@@ -24,6 +26,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sunny.morningchallenge
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Morning
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
