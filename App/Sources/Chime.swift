@@ -6,9 +6,13 @@ import AVFoundation
 enum Chime {
     private static var player: AVAudioPlayer?
 
+    /// Called every second past the deadline, so it also restarts the bells after an
+    /// interruption such as the alarm or a phone call.
     static func startLooping() {
-        guard player == nil,
-              let url = Bundle.main.url(forResource: "deadline_bells", withExtension: "wav") else { return }
+        if player?.isPlaying == true { return }
+        player?.stop()
+        player = nil
+        guard let url = Bundle.main.url(forResource: "deadline_bells", withExtension: "wav") else { return }
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default)

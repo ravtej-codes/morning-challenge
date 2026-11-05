@@ -92,6 +92,7 @@ enum Bells {
 /// Plays bells while the app is open (iOS hides notifications from the foreground app otherwise).
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+        // With the app open, Chime plays the deadline bells; a second copy here would compete with it.
+        notification.request.identifier == "deadline-bells" ? [.banner] : [.banner, .sound]
     }
 }
