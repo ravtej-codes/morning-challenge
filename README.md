@@ -8,5 +8,6 @@ the app counts down against the clock, rings soft bells, then an insistent Alarm
 - `.github/workflows/build.yml` — builds an unsigned `.ipa` on a macOS runner; Sideloadly signs and installs it.
 - `scripts/make_bells.py` — regenerates the bell sounds.
 - `scripts/make_icon.py` — regenerates the app icon.
+- `scripts/morning_data.py` — laptop sync: `pull` downloads next-action attempts, `push-prompt` publishes the suggestion prompt. Data stays in `../data/`, outside this public repo.
 
 Sideloadly: fixed bundle ID `com.sunny.morningchallenge`, same Apple ID every time, automatic refresh on.

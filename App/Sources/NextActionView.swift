@@ -18,6 +18,8 @@ struct NextActionView: View {
     @State private var error: String?
     @State private var action = ""
     @State private var lead = 5
+    @State private var attemptID: String?
+    @State private var pickedSuggestion: String?
     @FocusState private var actionFocused: Bool
     private let leads = [2, 5, 10, 15, 20, 30, 45]
 
@@ -152,6 +154,10 @@ struct NextActionView: View {
             Spacer()
             BigButton(title: "Start the clock", enabled: !trimmedAction.isEmpty) {
                 if let m = store.begin(label: trimmedAction, kind: "action", leadMinutes: lead) {
+                    store.attempts.recordCommit(attemptID: attemptID, area: area?.rawValue ?? "", routine: routine,
+                                                action: trimmedAction, suggestedAction: pickedSuggestion,
+                                                session: store.extra != nil ? "extra" : "morning", morning: m)
+                    Task { await store.sync() }
                     Task { await Bells.schedule(for: m) }
                 }
                 screen = .countdown
@@ -164,20 +170,27 @@ struct NextActionView: View {
     private var routine: String { transcriber.text.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var trimmedAction: String { action.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    @MainActor
     private func fetch() async {
         guard let area else { return }
         loading = true
         error = nil
+        attemptID = nil
         do {
-            suggestions = try await NextActionClient().suggest(area: area.rawValue, routine: routine)
+            let prompt = await NextActionClient.currentPrompt()
+            suggestions = try await NextActionClient().suggest(area: area.rawValue, routine: routine, prompt: prompt)
+            attemptID = store.attempts.recordSuggestions(area: area.rawValue, routine: routine,
+                                                         suggestions: suggestions, promptVersion: prompt.version)
         } catch {
             self.error = error.localizedDescription
         }
         loading = false
+        await store.sync()
     }
 
     private func choose(_ text: String, edit: Bool) {
         action = text
+        pickedSuggestion = text.isEmpty ? nil : text
         step = .commit
         // give the text field a moment to appear before focusing it
         if edit { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { actionFocused = true } }

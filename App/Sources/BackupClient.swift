@@ -46,6 +46,22 @@ struct BackupClient {
         return nil
     }
 
+    /// The server keeps the newest version of an attempt, so a 409 just means it already has it.
+    func put(_ a: ActionAttempt) async throws {
+        let body = try JSONEncoder.morning.encode(a)
+        let (_, resp) = try await URLSession.shared.data(for: request("attempts/\(a.id)", method: "PUT", body: body))
+        try check(resp, allow: [409])
+    }
+
+    /// Short timeout: if the backend is slow the app falls back rather than making you wait.
+    func fetchPrompt() async throws -> ServedPrompt {
+        var r = request("prompt")
+        r.timeoutInterval = 5
+        let (data, resp) = try await URLSession.shared.data(for: r)
+        try check(resp, allow: [])
+        return try JSONDecoder().decode(ServedPrompt.self, from: data)
+    }
+
     func ping() async -> String {
         do {
             let (_, resp) = try await URLSession.shared.data(for: request("mornings"))

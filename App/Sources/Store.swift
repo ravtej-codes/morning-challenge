@@ -12,6 +12,7 @@ final class Store: ObservableObject {
     private var pending: Set<String> = []
     private let fileURL: URL
     private let backup = BackupClient()
+    let attempts = AttemptLog()
 
     init() {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -81,6 +82,7 @@ final class Store: ObservableObject {
 
     func confirmStarted() {
         guard var m = current else { return }
+        if m.isAction { attempts.finish(outcome: "done") }
         m.confirmedStartedAt = Date()
         m.result = "won"
         m.touch()
@@ -91,13 +93,14 @@ final class Store: ObservableObject {
     @discardableResult
     func evaluate(now: Date = Date()) -> Bool {
         guard var m = current, now >= m.failTime else { return false }
+        if m.isAction { attempts.finish(outcome: "missed", at: now) }
         m.result = "lost"
         m.touch()
         upsert(m)
         return true
     }
 
-    // MARK: - Extra sessions (after the morning is done; never logged, never synced)
+    // MARK: - Extra sessions (after the morning is done; not in the morning log or the streak)
 
     /// Kept only so a running extra session survives the app being closed; cleared when it ends.
     @Published private(set) var extra: Morning? = Store.loadExtra() {
@@ -116,12 +119,22 @@ final class Store: ObservableObject {
                         confirmedStartedAt: nil, result: nil, paid: nil, updatedAt: 0, kind: kind)
     }
 
-    func endExtra() { extra = nil }
+    func endExtra() {
+        if extra?.isAction == true {
+            attempts.finish(outcome: "done")
+            Task { await sync() }
+        }
+        extra = nil
+    }
 
     /// Ends a running extra session once its fail time has passed. Returns true if it was missed.
     @discardableResult
     func evaluateExtra(now: Date = Date()) -> Bool {
         guard let m = extra, now >= m.failTime else { return false }
+        if m.isAction {
+            attempts.finish(outcome: "missed", at: now)
+            Task { await sync() }
+        }
         extra = nil
         return true
     }
@@ -193,6 +206,7 @@ final class Store: ObservableObject {
                 }
                 pending.remove(date)
             }
+            try await attempts.upload(using: backup)
             lastBackup = Date()
             backupError = nil
         } catch {

@@ -6,11 +6,33 @@ struct Suggestion: Codable, Identifiable, Equatable {
     var id: String { action }
 }
 
+/// The system prompt and its version. The live copy is on the backend, so it can change
+/// without a new build and can hold personal examples this public repo must not.
+struct ServedPrompt: Codable, Equatable {
+    var version: Int
+    var instructions: String
+}
+
 /// Asks DeepSeek for up to 3 small first actions, built only from what the user described.
 /// The API key is typed into Settings and kept in the Keychain.
 struct NextActionClient {
     static let url = URL(string: "https://api.deepseek.com/chat/completions")!
+    private static let cacheKey = "servedPrompt"
 
+    /// The backend's prompt, else the last one downloaded, else the built-in one.
+    static func currentPrompt() async -> ServedPrompt {
+        if let live = try? await BackupClient().fetchPrompt() {
+            UserDefaults.standard.set(try? JSONEncoder().encode(live), forKey: cacheKey)
+            return live
+        }
+        if let data = UserDefaults.standard.data(forKey: cacheKey),
+           let cached = try? JSONDecoder().decode(ServedPrompt.self, from: data) {
+            return cached
+        }
+        return ServedPrompt(version: 0, instructions: instructions)
+    }
+
+    /// Fallback only, and public: real personal examples go in the backend copy, never here.
     static let instructions = """
     You help a person who feels resistance to starting an activity. They describe, in their own words, \
     how they usually get started. Suggest up to 3 first actions they could commit to right now.
@@ -43,7 +65,7 @@ struct NextActionClient {
         }
     }
 
-    func suggest(area: String, routine: String) async throws -> [Suggestion] {
+    func suggest(area: String, routine: String, prompt: ServedPrompt) async throws -> [Suggestion] {
         guard let key = Keychain.deepseekKey else { throw Failure.noKey }
         var r = URLRequest(url: Self.url)
         r.httpMethod = "POST"
@@ -55,7 +77,7 @@ struct NextActionClient {
             "temperature": 0.3,
             "response_format": ["type": "json_object"],
             "messages": [
-                ["role": "system", "content": Self.instructions],
+                ["role": "system", "content": prompt.instructions],
                 ["role": "user", "content": "Activity: \(area)\nHow I usually get started: \(routine)"],
             ],
         ]
