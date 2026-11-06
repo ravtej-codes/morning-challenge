@@ -13,6 +13,7 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
             for window in scene.windows where !windows.contains(ObjectIdentifier(window)) {
                 let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
                 tap.cancelsTouchesInView = false
+                tap.delaysTouchesEnded = false   // don't hold back the tap from the button underneath
                 tap.delegate = self
                 window.addGestureRecognizer(tap)
                 windows.append(ObjectIdentifier(window))
@@ -21,7 +22,10 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc private func tapped(_ g: UITapGestureRecognizer) {
-        g.view?.endEditing(true)
+        // close the keyboard after the tapped button has handled its tap; closing it mid-tap
+        // re-renders the screen and the button (e.g. Back) can lose the tap
+        let window = g.view
+        DispatchQueue.main.async { window?.endEditing(true) }
     }
 
     // taps inside a text field / editor keep the keyboard up (moving the cursor etc.)
@@ -40,15 +44,24 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
 
 extension View {
     /// Swipe right from the left edge to go back (the app routes screens itself, so no NavigationStack gesture).
+    /// A thin invisible strip on top of the left edge catches the drag; a gesture on the screen itself
+    /// never fires there because the edge is empty padding, which isn't touchable in SwiftUI.
     func swipeBack(_ action: @escaping () -> Void) -> some View {
-        simultaneousGesture(
-            DragGesture(minimumDistance: 20, coordinateSpace: .global).onEnded { v in
-                if v.startLocation.x < 40, v.translation.width > 80, abs(v.translation.height) < 100 {
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                    action()
-                }
+        frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .leading) {
+                Color.clear
+                    .frame(width: 22)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 10).onEnded { v in
+                            if v.translation.width > 60, abs(v.translation.height) < abs(v.translation.width) {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                action()
+                            }
+                        }
+                    )
+                    .ignoresSafeArea()
             }
-        )
     }
 }
 
@@ -61,8 +74,10 @@ struct BackButton: View {
                 Image(systemName: "chevron.left").font(.body.weight(.semibold))
                 Text("Back")
             }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            .padding(.vertical, 10)
+            .padding(.trailing, 40)
+            .frame(minHeight: 48)
+            .contentShape(Rectangle())   // whole padded area is tappable, not just the letters
         }
         .foregroundStyle(.secondary)
     }
