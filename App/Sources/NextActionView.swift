@@ -25,7 +25,7 @@ struct NextActionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Button("Back") { back() }.foregroundStyle(.secondary)
+            BackButton { back() }
             switch step {
             case .area: areaStep
             case .describe: describeStep
@@ -34,6 +34,7 @@ struct NextActionView: View {
             }
         }
         .padding()
+        .swipeBack { back() }
         .onDisappear { transcriber.stop() }
     }
 
@@ -72,11 +73,12 @@ struct NextActionView: View {
             TextEditor(text: $transcriber.text)
                 .scrollContentBackground(.hidden)
                 .padding(10)
-                .frame(minHeight: 160)
+                .frame(minHeight: 140, maxHeight: 220)
                 .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.07)))
             HStack {
                 Spacer()
                 Button {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     Task { await transcriber.toggle() }
                 } label: {
                     Image(systemName: transcriber.isRecording ? "stop.fill" : "mic.fill")

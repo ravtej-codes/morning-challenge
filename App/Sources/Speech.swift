@@ -13,6 +13,13 @@ final class Transcriber: ObservableObject {
     private var task: SFSpeechRecognitionTask?
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-IN")) ?? SFSpeechRecognizer()
 
+    // After a pause iOS starts a fresh transcript for the next utterance, so we keep
+    // everything already heard in `committed` and only replace the current utterance.
+    private var committed = ""
+    private var partial = ""
+    private var utteranceEnded = false
+    private var run = 0  // ignores late callbacks from an earlier recording
+
     func toggle() async {
         if isRecording { stop() } else { await start() }
     }
@@ -32,7 +39,11 @@ final class Transcriber: ObservableObject {
             return
         }
         Chime.stop()
-        let prefix = text.isEmpty ? "" : text + " "
+        run += 1
+        let thisRun = run
+        committed = text.isEmpty ? "" : text + " "
+        partial = ""
+        utteranceEnded = false
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
@@ -49,10 +60,11 @@ final class Transcriber: ObservableObject {
             try engine.start()
             isRecording = true
 
-            task = Self.recognise(with: recognizer, request: request) { [weak self] transcript, finished in
+            task = Self.recognise(with: recognizer, request: request) { [weak self] transcript, endOfUtterance, finished in
                 Task { @MainActor in
-                    guard let self else { return }
-                    if let transcript { self.text = prefix + transcript }
+                    guard let self, self.run == thisRun else { return }
+                    if let transcript, !transcript.isEmpty { self.receive(transcript) }
+                    if endOfUtterance { self.utteranceEnded = true }
                     if finished { self.stop() }
                 }
             }
@@ -63,6 +75,7 @@ final class Transcriber: ObservableObject {
     }
 
     func stop() {
+        run += 1  // text is already up to date; late results must not overwrite later typing
         if engine.isRunning {
             engine.stop()
             engine.inputNode.removeTap(onBus: 0)
@@ -77,6 +90,27 @@ final class Transcriber: ObservableObject {
         }
     }
 
+    private func receive(_ transcript: String) {
+        if Self.isNewUtterance(previous: partial, next: transcript, afterPause: utteranceEnded) {
+            committed += partial + " "
+        }
+        utteranceEnded = false
+        partial = transcript
+        text = committed + transcript
+    }
+
+    /// True when `next` is a fresh utterance rather than a revision of `previous`.
+    nonisolated static func isNewUtterance(previous: String, next: String, afterPause: Bool) -> Bool {
+        guard !previous.isEmpty else { return false }
+        let p = previous.lowercased().filter(\.isLetter)
+        let n = next.lowercased().filter(\.isLetter)
+        let k = min(10, p.count, n.count)
+        let samePrefix = k > 0 && p.prefix(k) == n.prefix(k)
+        if samePrefix { return false }                 // still growing / revising the same utterance
+        if afterPause { return true }                  // iOS marked the end of an utterance
+        return Double(n.count) <= Double(p.count) * 0.8 // restarted: much shorter and different start
+    }
+
     // audio callbacks run off the main thread, so keep them out of the main-actor class
     nonisolated private static func installTap(on input: AVAudioInputNode, feeding request: SFSpeechAudioBufferRecognitionRequest) {
         let format = input.outputFormat(forBus: 0)
@@ -88,9 +122,11 @@ final class Transcriber: ObservableObject {
 
     nonisolated private static func recognise(with recognizer: SFSpeechRecognizer,
                                               request: SFSpeechAudioBufferRecognitionRequest,
-                                              onUpdate: @escaping @Sendable (String?, Bool) -> Void) -> SFSpeechRecognitionTask {
+                                              onUpdate: @escaping @Sendable (String?, Bool, Bool) -> Void) -> SFSpeechRecognitionTask {
         recognizer.recognitionTask(with: request) { result, error in
-            onUpdate(result?.bestTranscription.formattedString, error != nil || (result?.isFinal ?? false))
+            onUpdate(result?.bestTranscription.formattedString,
+                     result?.speechRecognitionMetadata != nil,   // set when a pause ends an utterance
+                     error != nil || (result?.isFinal ?? false))
         }
     }
 }

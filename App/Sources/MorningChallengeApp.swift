@@ -54,7 +54,11 @@ struct RootView: View {
             case .settings: SettingsView(screen: $screen)
             }
         }
+        // the keyboard overlays the screen instead of squeezing it; squeezing pushed the
+        // Back button up behind the status bar on tall screens like next-action
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .animation(.easeInOut(duration: 0.25), value: screen)
+        .onAppear { KeyboardDismisser.shared.install() }
         .onChange(of: scenePhase, initial: true) { _, phase in
             guard phase == .active else { return }
             route()

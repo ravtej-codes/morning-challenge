@@ -106,7 +106,7 @@ struct SetupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Button("Back") { screen = .home }.foregroundStyle(.secondary)
+            BackButton { screen = .home }
             Text("What's next?").font(.largeTitle.bold())
             ForEach(Activity.allCases) { a in
                 Button { activity = a } label: {
@@ -137,6 +137,7 @@ struct SetupView: View {
             }
         }
         .padding()
+        .swipeBack { screen = .home }
     }
 }
 
@@ -334,7 +335,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
         VStack(alignment: .leading, spacing: 18) {
-            Button("Back") { screen = .home }.foregroundStyle(.secondary)
+            BackButton { screen = .home }
             Text("Settings").font(.largeTitle.bold())
 
             Text("Backup token").font(.headline)
@@ -387,6 +388,8 @@ struct SettingsView: View {
         }
         .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
+        .swipeBack { screen = .home }
     }
 }
 
